@@ -158,7 +158,13 @@ find_closest_depth <- function(target_depth, nc) {
 
 # Modified function that accepts time indices rather than years
 download_and_average_variable <- function(nc, var_name, output_file, start_vec, count_vec, 
-                                         time_indices, time_years) {
+                                         time_indices, time_years, force_overwrite = FALSE) {
+
+  # Check if file already exists and skip if so (unless force_overwrite is TRUE)
+  if (file.exists(output_file) && !force_overwrite) {
+    cat(sprintf("\n    Skipping existing file: %s\n", output_file))
+    return(NULL)
+  }
 
   if (length(time_indices) == 0) {
     cat(sprintf("\n    Warning: No time steps to process\n"))
