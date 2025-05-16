@@ -4,3 +4,18 @@
 ```R
 setwd("~/2025/ereefs/GBR_AIMS_eReefs-climatology_2025")
 ```
+3. Run the download script
+```R
+source("01-download-ereefs-data.R")
+```
+
+# Setting up Python
+1. Create the Conda environment. 
+    ```bash
+    cd {path to the GBR_AIMS_ereefs-climatology_2025 dataset} 
+    conda env create -f environment.yml
+    ```
+2. Activate the environment
+    ```bash
+    conda activate ereefs-climate
+    ```
