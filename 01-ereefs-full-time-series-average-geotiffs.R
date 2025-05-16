@@ -1,11 +1,15 @@
 # This script produces GeoTiff raster files corresponding to the average of
-# the full time series of many of the common variable for the BGC and Hydro 
-# model data for a set of depths. This creates a climatology estimate of 
-# each variable allowing spatial patterns of average conditions to be identified. 
+# the full time series of many of the common variable for the BGC and Hydro
+# model data for a set of depths. This creates a climatology estimate of
+# each variable allowing spatial patterns of average conditions to be 
+# identified. 
 #
-# This script downloads only a subset of the depth slices. A shallow depth that
-# corresponds largely to just below the surface (3m) and a deeper depth that
-# corresponds to the deeper coral areas (-17.75m).
+# This script downloads only a subset of the depth slices. 
+#
+# The script processes four standard depths: 3m, 9m, 18m, and 39m below the surface.
+# Each model is processed using predefined date ranges to ensure only complete years 
+# are included in the climatology. Variables without a depth dimension are processed 
+# once and saved in a 'surface' directory.
 #
 # In this we we use the AIMS THREDDS regridded aggregate version of the eReefs
 # data for two reasons:
@@ -27,8 +31,9 @@
 #
 # This script prepares GeoTiffs for each model (GBR4 BGC, GBR4 Hydro, and GBR1 Hydro),
 # each common variable and each depth layer (3m and 17.75m). The final output is a 
-# set of GeoTiff files saved in data/out/<Model><version>/<depth>/<ModelID>_<variable>_<depth>m.tif.
-# Where <Model><version> are adjusted to replace " " with "_" and "." with "p".
+# set of GeoTiff files saved in 
+# data/out/<name>/<depth>/<ModelID>_avg-<start_year>-<end-year>_<variable>_<depth>m.tif.
+
 #
 # The script is designed to be run in R and requires the ncdf4 and raster packages.
 # To provide feedback during progress the script downloads one variable at a time
@@ -72,6 +77,8 @@
 # v = Northward current (ocean current)
 # wspeed_u = Eastward wind speed
 # wspeed_v = Northward wind speed
+# mean_cur = Mean current magnitude speed
+# mean_wspeed = Mean wind magnitude speed
 
 
 library(ncdf4)   # For handling NetCDF files
@@ -83,43 +90,52 @@ output_dir <- "data/out"
 if (!dir.exists(output_dir)) dir.create(output_dir, recursive = TRUE)
 
 # Define the depths we want to extract (m)
-depths <- c(-3, -18)
+depths <- c(-3, -9, -18, -39)
 
 # Model definitions - contains all the information we need to access each model
+# Set start and end years to only include whole years. This is to ensure that
+# the average is not skewed by partial years and seasonal effects.
 models <- list(
-#   list(
-#     name = "GBR4 BGC baseline",
-#     version = "3.1",
-#     model_id = "GBR4_H2p0_B3p1_Cq3b_Dhnd",
-#     url = "https://thredds.ereefs.aims.gov.au/thredds/dodsC/GBR4_H2p0_B3p1_Cq3b_Dhnd/annual.nc",
-#     variables = c('TN', 'TP', 'DIN', 'DIP', 'Chl_a_sum', 'NO3', 'NH4', 'DOR_N', 
-#                   'DOR_P', 'Secchi', 'PH', 'omega_ar', 'EFI'),
-#     type = "bgc"
-#   ),
-#   list(
-#     name = "GBR4 Hydro",
-#     version = "2.0",
-#     model_id = "gbr4_v2_hydro",
-#     url = "https://thredds.ereefs.aims.gov.au/thredds/dodsC/gbr4_v2/annual.nc",
-#     variables = c('eta', 'temp', 'salt', 'u', 'v', 'wspeed_u', 'wspeed_v'),
-#     type = "hydro"
-#   ),
   list(
-    name = "GBR1 Hydro",
-    version = "2.0",
+    name = "GBR4-BGC3p1-base",
+    model_id = "GBR4_H2p0_B3p1_Cq3b_Dhnd",
+    url = "https://thredds.ereefs.aims.gov.au/thredds/dodsC/GBR4_H2p0_B3p1_Cq3b_Dhnd/annual.nc",
+    variables = c('TN', 'TP', 'DIN', 'DIP', 'Chl_a_sum', 'NO3', 'NH4', 'DOR_N', 
+                  'DOR_P', 'Secchi', 'PH', 'omega_ar', 'EFI'),
+    type = "bgc",
+    start_year = 2011,
+    end_year = 2018
+  ),
+  list(
+    name = "GBR4-H2p0",
+    model_id = "gbr4_v2_hydro",
+    url = "https://thredds.ereefs.aims.gov.au/thredds/dodsC/gbr4_v2/annual.nc",
+    variables = c('eta', 'temp', 'salt', 'u', 'v', 'wspeed_u', 
+      'wspeed_v', 'mean_cur', 'mean_wspeed'),
+    type = "hydro",
+    start_year = 2011,
+    end_year = 2023
+  ),
+  list(
+    name = "GBR1-H2p0",
     model_id = "gbr1_2.0_hydro",
     url = "https://thredds.ereefs.aims.gov.au/thredds/dodsC/gbr1_2.0/annual.nc",
-    variables = c('eta', 'temp', 'salt', 'u', 'v', 'wspeed_u', 'wspeed_v'),
-    type = "hydro"
+    variables = c('eta', 'temp', 'salt', 'u', 'v', 'wspeed_u', 'wspeed_v',
+      'mean_cur', 'mean_wspeed'),
+    type = "hydro",
+    start_year = 2015,
+    end_year = 2023
   )
 # Commented out for now as the model is not yet available
 #   list(
-#     name = "GBR4 Hydro",
+#     name = "GBR4-H4p0",
 #     version = "4.0",
 #     model_id = "GBR4_H4p0_ABARRAr2_OBRAN2020_FG2Gv3_Dhnd",
 #     url = "https://thredds.ereefs.aims.gov.au/thredds/dodsC/GBR4_H4p0_ABARRAr2_OBRAN2020_FG2Gv3_Dhnd/annual.nc",
 #     variables = c('eta', 'temp', 'salt', 'u', 'v', 'wspeed_u', 'wspeed_v'),
-#     type = "hydro"
+#     type = "hydro",
+#     start_year = 2011,
+#     end_year = 2022
 #   )
 )
 
@@ -140,47 +156,107 @@ find_closest_depth <- function(target_depth, nc) {
   }
 }
 
-# Function to sanitize model name for directory structure
-sanitize_name <- function(name) {
-  name <- gsub(" ", "_", name)
-  name <- gsub("\\.", "p", name)
-  return(name)
-}
+# Modified function that accepts time indices rather than years
+download_and_average_variable <- function(nc, var_name, output_file, start_vec, count_vec, 
+                                         time_indices, time_years) {
 
-# Function to copy NetCDF attributes to the raster object
-copy_nc_attributes_to_raster <- function(nc, var_name, r) {
-  # Get all variable attributes
-  attrs <- ncatt_get(nc, var_name)
-  
-  # Initialize the attributes list if it doesn't exist
-  if (is.null(r@data@attributes) || length(r@data@attributes) == 0) {
-    r@data@attributes <- list(list())
+  if (length(time_indices) == 0) {
+    cat(sprintf("\n    Warning: No time steps to process\n"))
+    return(NULL)
   }
+
+  # Initialize arrays for accumulating values and counting non-NA cells
+  first_slice <- TRUE
+  sum_data <- NULL
+  count_data <- NULL
   
-  # Add these as metadata to the raster
-  for (att_name in names(attrs)) {
-    if (att_name != "_FillValue") {  # Skip fill value as it's handled differently in rasters
-      r@data@attributes[[1]][[att_name]] <- attrs[[att_name]]
+  # Print header for time slice diagnostics
+  cat(sprintf("\n    Time slice averages for %s:\n", var_name))
+  
+  # Process one time step at a time to limit OpenDAP request size
+  for (i in 1:length(time_indices)) {
+    t <- time_indices[i]
+
+    # Modify the start and count vectors for this time step
+    time_start <- start_vec
+    time_count <- count_vec
+    
+    # Find the time dimension index
+    time_dim_idx <- which(sapply(nc$var[[var_name]]$dim, function(d) d$name == "time"))
+    
+    # Set time slice
+    time_start[time_dim_idx] <- t
+    time_count[time_dim_idx] <- 1
+    
+    # Get data for this time slice
+    slice_data <- ncvar_get(nc, var_name, start = time_start, count = time_count)
+    
+    # Remove singleton dimensions
+    slice_data <- drop(slice_data)
+    
+    # Calculate and print average for this time slice (for debugging)
+    slice_avg <- mean(slice_data, na.rm = TRUE)
+
+    # Print the time index, year and time slice average
+    cat(sprintf("      Time index %d (year %d): %.6f\n", t, time_years[t], slice_avg))
+    
+    # Initialize arrays on first iteration
+    if (first_slice) {
+      sum_data <- slice_data
+      count_data <- !is.na(slice_data)
+      first_slice <- FALSE
+    } else {
+      # Add to sum (ignoring NAs)
+      sum_data[!is.na(slice_data)] <- sum_data[!is.na(slice_data)] + 
+                                    slice_data[!is.na(slice_data)]
+      
+      # Count valid data points
+      count_data <- count_data + !is.na(slice_data)
     }
   }
+
+  cat("\n")
   
-  # Add standard raster metadata if available
-  if ("units" %in% names(attrs)) {
-    r@data@unit <- attrs$units
-  }
-  if ("long_name" %in% names(attrs)) {
-    r@data@names <- attrs$long_name
-  } else {
-    r@data@names <- var_name
-  }
+  # Calculate mean
+  mean_data <- sum_data / count_data
   
-  return(r)
+  # Replace 0/0 division results (NaN) with NA
+  mean_data[is.nan(mean_data)] <- NA
+  
+  # Print the overall mean for validation
+  overall_mean <- mean(mean_data, na.rm = TRUE)
+  cat(sprintf("    Overall mean: %.6f\n", overall_mean))
+  
+  # Get coordinates
+  lon <- ncvar_get(nc, "longitude")
+  lat <- ncvar_get(nc, "latitude")
+  
+  # Calculate cell size (resolution)
+  x_res <- (max(lon) - min(lon)) / (length(lon))
+  y_res <- (max(lat) - min(lat)) / (length(lat))
+  
+  # Create raster with adjusted extent to account for cell centers
+  # Adjust by half cell in each direction
+  r <- raster(
+    t(mean_data),  # Transpose because raster expects rows=y, cols=x
+    xmn = min(lon) - (x_res/2), xmx = max(lon) + (x_res/2),
+    ymn = min(lat) - (y_res/2), ymx = max(lat) + (y_res/2),
+    crs = "+proj=longlat +datum=WGS84"
+  )
+  
+  # Fix the vertical flip issue
+  r <- flip(r, direction='y')
+  
+  # Save as GeoTIFF with all metadata included
+  writeRaster(r, output_file, format = "GTiff", overwrite = TRUE)
+  
+  cat(sprintf("    Created GeoTIFF: %s\n", output_file))
 }
 
 # Process each model
 for (model in models) {
-  model_dir_name <- paste0(sanitize_name(model$name), sanitize_name(model$version))
-  cat(sprintf("\nProcessing model: %s %s\n", model$name, model$version))
+  model_dir_name <- model$name
+  cat(sprintf("\nProcessing model: %s\n", model$name))
   
   # Create model output directory
   model_dir <- file.path(output_dir, model_dir_name)
@@ -196,117 +272,126 @@ for (model in models) {
   
   if (is.null(nc)) next
   
-  # Get coordinate information
-  lon <- ncvar_get(nc, "longitude")
-  lat <- ncvar_get(nc, "latitude")
-  time <- ncvar_get(nc, "time")
+  # Get time data and convert to Queensland time (UTC+10)
+  time_var <- ncvar_get(nc, "time")
   time_units <- ncatt_get(nc, "time", "units")$value
   
-  # Process each depth
-  for (depth in depths) {
-    # First find the closest depth in the model using the zc variable
-    depth_info <- find_closest_depth(depth, nc)
+  # Parse time units to get base date
+  time_base_year <- as.numeric(substr(time_units, regexpr("[0-9]{4}", time_units), 
+                                     regexpr("[0-9]{4}", time_units) + 3))
+  
+  
+  # Adjust to Queensland local time (UTC+10)
+  # This is a simplification; for more precise conversion we'd need POSIXct handling
+  qld_offset <- 10/24/365.25  # 10 hours as fraction of a year
+  time_years <- round(time_base_year + time_var/365.25 + qld_offset)
+  
+  # Use predefined start and end years from the model definition
+  start_year <- model$start_year
+  end_year <- model$end_year
+  
+  # Find time indices within the specified year range
+  year_mask <- time_years >= start_year & time_years <= end_year
+
+
+  time_indices <- which(year_mask)
+  
+  if (length(time_indices) == 0) {
+    cat(sprintf("  Warning: No time steps found within years %d-%d. Skipping model.\n", 
+                start_year, end_year))
+    nc_close(nc)
+    next
+  }
+  
+  cat(sprintf("  Found %d time steps within years %d-%d\n", 
+              length(time_indices), start_year, end_year))
+  cat(sprintf("  Using time indices: %s\n", paste(time_indices, collapse = ", ")))
+  
+  # Create date range string for filenames
+  date_range <- sprintf("avg-%d-%d", start_year, end_year)
+  
+  # Create surface directory for variables without depth dimension
+  surface_dir <- file.path(model_dir, "surface")
+  if (!dir.exists(surface_dir)) dir.create(surface_dir)
+  
+  # Process each variable
+  for (var_name in model$variables) {
+    if (!(var_name %in% names(nc$var))) {
+      cat(sprintf("  Warning: Variable %s not found in the dataset. Skipping.\n", var_name))
+      next
+    }
     
-    # Now create depth_str based on the actual depth found
-    depth_str <- sprintf("%.1fm", abs(depth_info$actual_depth))
+    cat(sprintf("  Processing variable: %s\n", var_name))
     
-    cat(sprintf("  Processing depth: target %.1fm, using closest %.2f m (k=%d)\n", 
-                abs(depth), depth_info$actual_depth, depth_info$index))
+    # Check dimensionality of the variable
+    var_dim_count <- length(nc$var[[var_name]]$dim)
+    var_dims <- sapply(nc$var[[var_name]]$dim, function(d) d$name)
     
-    # Create depth-specific output directory
-    depth_dir <- file.path(model_dir, depth_str)
-    if (!dir.exists(depth_dir)) dir.create(depth_dir)
+    # Check if this variable has a depth dimension
+    has_depth_dim <- FALSE
+    depth_dim_idx <- NULL
     
-    # Process each variable
-    for (var_name in model$variables) {
+    # Check if this variable has a depth dimension
+    var_dims <- sapply(nc$var[[var_name]]$dim, function(d) d$name)
+    depth_dim_idx <- which(var_dims == "k")
+    cat(sprintf("    Variable dimensions: %s\n", paste(var_dims, collapse = ", ")))
+    cat(sprintf("    Depth dimension index: %s\n", depth_dim_idx))
+    has_depth_dim <- length(depth_dim_idx) > 0
+    
+    if (has_depth_dim) {
+      # Process for each depth if the variable has a depth dimension
+      cat(sprintf("    Variable has depth dimension. Processing for each target depth.\n"))
+      
+      # Process each depth
+      for (depth in depths) {
+        # Find the closest depth in the model
+        depth_info <- find_closest_depth(depth, nc)
         
-        # Get the number of time steps
-        time_dim <- nc$dim$time$len
-        cat(sprintf("    Processing variable: %s (%d time steps)\n", var_name, time_dim))
+        # Create depth string based on actual depth found
+        depth_str <- sprintf("%.1fm", abs(depth_info$actual_depth))
         
-        # Check dimensionality of the variable
-        var_dim_count <- length(nc$var[[var_name]]$dim)
+        cat(sprintf("    Processing depth: target %.1fm, using closest %.2f m (k=%d)\n", 
+                   abs(depth), depth_info$actual_depth, depth_info$index))
         
-        # Create appropriate filename based on whether variable has depth dimension
-        if (var_dim_count == 4) {
-            output_file <- file.path(depth_dir, 
-                                sprintf("%s_%s_%s.tif", model$model_id, var_name, depth_str))
-        } else {
-            output_file <- file.path(depth_dir, 
-                                sprintf("%s_%s.tif", model$model_id, var_name))
-        }
+        # Create depth-specific output directory
+        depth_dir <- file.path(model_dir, depth_str)
+        if (!dir.exists(depth_dir)) dir.create(depth_dir)
         
-        # Initialize arrays for accumulating values and counting non-NA cells
-        first_slice <- TRUE
-        sum_data <- NULL
-        count_data <- NULL
+        # Set output filename
+        output_file <- file.path(depth_dir,
+                                 sprintf("%s_%s_%s_%s.tif",
+                                         model$model_id, date_range,
+                                         var_name, depth_str))
         
-        # Process one time step at a time. This is to limit the size of the OpenDAP
-        # request, that can fail if it is too large.
-        for (t in 1:time_dim) {
-            cat(sprintf("\r    Processing time slice %d/%d...", t, time_dim))
-            
-            # Get data for this time slice
-            if (var_dim_count == 4) {
-                # 4D variable with depth dimension
-                slice_data <- ncvar_get(
-                    nc, var_name,
-                    start = c(1, 1, depth_info$index + 1, t),
-                    count = c(-1, -1, 1, 1)
-                )
-            } else if (var_dim_count == 3) {
-                # 3D variable without depth dimension
-                slice_data <- ncvar_get(
-                    nc, var_name,
-                    start = c(1, 1, t),
-                    count = c(-1, -1, 1)
-                )
-            }
-            
-            # Remove singleton dimensions
-            slice_data <- drop(slice_data)
-            
-            # Initialize arrays on first iteration
-            if (first_slice) {
-                sum_data <- slice_data
-                count_data <- !is.na(slice_data)
-                first_slice <- FALSE
-            } else {
-                # Add to sum (ignoring NAs)
-                sum_data[!is.na(slice_data)] <- sum_data[!is.na(slice_data)] + 
-                                               slice_data[!is.na(slice_data)]
-                
-                # Count valid data points
-                count_data <- count_data + !is.na(slice_data)
-            }
-        }
+        # Create start and count vectors for this depth
+        start_vec <- rep(1, var_dim_count)
+        count_vec <- rep(-1, var_dim_count)
         
-        cat("\n")
+        # Set specific depth slice
+        start_vec[depth_dim_idx] <- depth_info$index + 1  # +1 because NetCDF is 0-indexed but R is 1-indexed
+        count_vec[depth_dim_idx] <- 1
         
-        # Calculate mean
-        mean_data <- sum_data / count_data
-        
-        # Replace 0/0 division results (NaN) with NA
-        mean_data[is.nan(mean_data)] <- NA
-        
-        # Create raster
-        r <- raster(
-            t(mean_data),  # Transpose because raster expects rows=y, cols=x
-            xmn = min(lon), xmx = max(lon),
-            ymn = min(lat), ymx = max(lat),
-            crs = "+proj=longlat +datum=WGS84"
-        )
-        
-        # Copy metadata from NetCDF to raster
-        r <- copy_nc_attributes_to_raster(nc, var_name, r)
-        
-        # Fix the vertical flip issue
-        r <- flip(r, direction='y')
-        
-        # Save as GeoTIFF
-        writeRaster(r, output_file, format = "GTiff", overwrite = TRUE)
-        
-        cat(sprintf("    Created GeoTIFF: %s\n", output_file))
+        # Download and process
+        download_and_average_variable(nc, var_name, output_file, start_vec, count_vec, 
+                                 time_indices, time_years)
+      }
+    } else {
+      # Process once for variables without depth dimension
+      cat(sprintf("    Variable does not have depth dimension. Processing once.\n"))
+      
+      # Set output filename
+      output_file <- file.path(surface_dir, 
+                               sprintf("%s_%s_%s.tif", 
+                                       model$model_id, date_range, 
+                                       var_name))
+      
+      # Create start and count vectors (no depth dimension)
+      start_vec <- rep(1, var_dim_count)
+      count_vec <- rep(-1, var_dim_count)
+      
+      # Download and process
+      download_and_average_variable(nc, var_name, output_file, start_vec, count_vec, 
+                                 time_indices, time_years)
     }
   }
   
