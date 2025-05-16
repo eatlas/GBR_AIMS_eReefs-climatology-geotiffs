@@ -46,7 +46,8 @@ models = [
         "name": "GBR4-H2p0",
         "model_id": "gbr4_v2_hydro",
         "url": "https://thredds.ereefs.aims.gov.au/thredds/dodsC/gbr4_v2/annual.nc",
-        "variables": ['eta', 'temp', 'salt', 'u', 'v', 'wspeed_u', 'wspeed_v'],
+        "variables": ['eta', 'temp', 'salt', 'u', 'v', 'wspeed_u', 'wspeed_v', 
+                      'mean_cur', 'mean_wspeed'],
         "type": "hydro",
         "start_year": 2011,
         "end_year": 2023
@@ -55,7 +56,8 @@ models = [
         "name": "GBR1-H2p0",
         "model_id": "gbr1_2.0_hydro",
         "url": "https://thredds.ereefs.aims.gov.au/thredds/dodsC/gbr1_2.0/annual.nc",
-        "variables": ['eta', 'temp', 'salt', 'u', 'v', 'wspeed_u', 'wspeed_v'],
+        "variables": ['eta', 'temp', 'salt', 'u', 'v', 'wspeed_u', 'wspeed_v'
+                      , 'mean_cur', 'mean_wspeed'],
         "type": "hydro",
         "start_year": 2015,
         "end_year": 2023
@@ -115,7 +117,8 @@ def create_geotiff(data_array, output_file):
         dtype=data_values.dtype,
         crs='+proj=longlat +datum=WGS84',
         transform=transform,
-        nodata=np.nan
+        nodata=np.nan,
+        compress='lzw'  # Added LZW compression
     ) as dst:
         dst.write(data_values, 1)
         
@@ -131,6 +134,12 @@ def download_and_average_variable(dataset, var_name, output_file, start_index, e
     
     Processes one time slice at a time to conserve memory and provide detailed statistics.
     """
+
+    # Check if output file already exists
+    if os.path.exists(output_file):
+        print(f"    Skipping {var_name}: Output file already exists at {output_file}")
+        return None
+    
     time_indices = np.arange(start_index, end_index + 1)
     
     # Get QLD times for reporting
