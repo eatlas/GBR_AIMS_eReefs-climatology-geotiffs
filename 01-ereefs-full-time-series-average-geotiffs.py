@@ -129,6 +129,15 @@ def create_geotiff(data_array, output_file):
     
     print(f"    Created GeoTIFF: {output_file}")
 
+def convert_to_years(utc_time_values):
+    # Convert to local time (QLD UTC+10)
+    local_time = [pd.Timestamp(t) + pd.Timedelta(hours=10) for t in utc_time_values]
+
+    # Extract the years
+    time_years = [pd.Timestamp(t).year for t in local_time]
+    return time_years
+
+
 def download_and_average_variable(dataset, var_name, output_file, start_index, end_index, k_index=None):
     """Download, average, and save a variable as GeoTIFF using time indices.
     
@@ -141,10 +150,8 @@ def download_and_average_variable(dataset, var_name, output_file, start_index, e
         return None
     
     time_indices = np.arange(start_index, end_index + 1)
-    
-    # Get QLD times for reporting
-    qld_time_values = convert_to_qld_time(dataset.time.values)
-    qld_years = [pd.Timestamp(t).year for t in qld_time_values]
+
+    time_years = convert_to_years(dataset.time.values)
     
     print(f"\n    Time slice averages for {var_name}:")
     
@@ -163,7 +170,7 @@ def download_and_average_variable(dataset, var_name, output_file, start_index, e
         
         # Calculate average (mean) of this time slice, ignoring NaN values
         slice_avg = float(time_slice.mean(skipna=True).values)
-        print(f"      Time index {idx} (year {qld_years[idx]}): {slice_avg:.6f}")
+        print(f"      Time index {idx} (year {time_years[idx]}): {slice_avg:.6f}")
         
         # Store the time slice for later averaging
         time_slices.append(time_slice)
@@ -185,10 +192,6 @@ def download_and_average_variable(dataset, var_name, output_file, start_index, e
     return mean_data
 
 
-def convert_to_qld_time(utc_times):
-    """Convert UTC time values to Queensland local time (UTC+10)"""
-    return np.array([pd.Timestamp(t) + pd.Timedelta(hours=10) for t in utc_times])
-
 # Process each model
 for model in models:
     model_dir_name = model["name"]
@@ -207,9 +210,7 @@ for model in models:
         # Open dataset with chunking to optimize memory usage
         ds = xr.open_dataset(model["url"], chunks={'time': 1})
         
-        # Get years using QLD time for naming
-        qld_time_values = convert_to_qld_time(ds.time.values)
-        time_years = [pd.Timestamp(t).year for t in qld_time_values]
+        time_years = convert_to_years(ds.time.values)
 
         # Determine the start and end for the start and end years based on time_years
         start_year = model["start_year"]
