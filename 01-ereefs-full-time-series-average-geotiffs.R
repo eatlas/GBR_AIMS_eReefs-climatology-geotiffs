@@ -282,15 +282,22 @@ for (model in models) {
   time_var <- ncvar_get(nc, "time")
   time_units <- ncatt_get(nc, "time", "units")$value
   
-  # Parse time units to get base date
-  time_base_year <- as.numeric(substr(time_units, regexpr("[0-9]{4}", time_units), 
-                                     regexpr("[0-9]{4}", time_units) + 3))
-  
-  
-  # Adjust to Queensland local time (UTC+10)
-  # This is a simplification; for more precise conversion we'd need POSIXct handling
-  qld_offset <- 10/24/365.25  # 10 hours as fraction of a year
-  time_years <- round(time_base_year + time_var/365.25 + qld_offset)
+  # If we want a simpler, slightly less robust version we can work off
+  # the fact that we know the units are days and the data is in UTC+10
+  # and the start date is 1990-01-01. We bake in these assumptions
+  # and simplify have a test to make sure these assumptions are correct.
+  assumed_time_units <- "days since 1990-01-01 00:00:00 +10"
+
+  # Fail if time units doesn't match
+  if (time_units != assumed_time_units) {
+      stop(sprintf("Assumed time units '%s' do not match actual time units '%s'", 
+                  assumed_time_units, time_units))
+  }
+
+  # Since we only want the year value and we know the units are days 
+  # and the day values are in local time we can just adjust the starting
+  # date by the time_var (in days).
+  time_years = round(1990 + time_var/365.25)
   
   # Use predefined start and end years from the model definition
   start_year <- model$start_year
