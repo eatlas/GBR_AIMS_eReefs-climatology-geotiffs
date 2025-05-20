@@ -66,6 +66,8 @@
 # PH = pH
 # omega_ar = Aragonite saturation state
 # EFI = Ecology Fine Inorganics (Total suspended solids)
+# Oxy_sat = Oxygen saturation percent
+# Oxygen = Dissolved oxygen
 
 # See https://thredds.ereefs.aims.gov.au/thredds/dodsC/GBR4_H4p0_ABARRAr2_OBRAN2020_FG2Gv3_Dhnd/annual.nc.html 
 # for additional details about the Hydro model variables.
@@ -101,7 +103,7 @@ models <- list(
     model_id = "GBR4_H2p0_B3p1_Cq3b_Dhnd",
     url = "https://thredds.ereefs.aims.gov.au/thredds/dodsC/GBR4_H2p0_B3p1_Cq3b_Dhnd/annual.nc",
     variables = c('TN', 'TP', 'DIN', 'DIP', 'Chl_a_sum', 'NO3', 'NH4', 'DOR_N', 
-                  'DOR_P', 'Secchi', 'PH', 'omega_ar', 'EFI'),
+                  'DOR_P', 'Secchi', 'PH', 'omega_ar', 'EFI','Oxy_sat','Oxygen'),
     type = "bgc",
     start_year = 2011,
     end_year = 2018
